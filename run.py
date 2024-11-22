@@ -3,7 +3,7 @@ import os
 from ultralytics import YOLO
 
 # 加载模型
-model = YOLO("../runs/detect/train8/weights/best.pt")
+model = YOLO("../runs/detect/train9/weights/best.pt")
 
 # 设置窗口大小
 window_name = "YOLO Detection"
