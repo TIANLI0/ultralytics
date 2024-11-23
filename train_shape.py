@@ -34,9 +34,9 @@ def on_train_epoch_end(trainer):
     sync_to_server(data, current_epoch)
 
 
-modelA = "../runs/detect/train10/weights/best.pt"
-description = "分组训练实验2"
-version = "Group 0.2"
+modelA = "../runs/detect/train10/weights/last.pt"
+description = "分组训练实验3"
+version = "Group 0.2-fix1"
 dataset = "D:/develop/YoloDB/tt100k_yolo_Shape/tt100k.yaml"
 deviceA = 0
 
@@ -46,7 +46,7 @@ model.add_callback("on_train_epoch_end", on_train_epoch_end)
 
 results = model.train(
     data=dataset,
-    epochs=60,
+    epochs=30,
     workers=0,
     device=deviceA,
     imgsz=640,
