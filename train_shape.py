@@ -1,12 +1,12 @@
+import os
 from ultralytics import YOLO
 import json
 from datetime import datetime
 import sys
-import os
 import yaml
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from TrainSync import sync_to_server
+from TrainSync import sync_to_server, check_continue_training
 from TrainUpload import upload_files
 
 
@@ -61,7 +61,7 @@ def on_model_save(trainer):
         {
             "version": version,
             "train_device": "3060 laptop 6GB",
-            "dataset": "TT100K Tianli",
+            "dataset": "TT100K Tianli Group",
             "description": description,
         }
     )
@@ -73,23 +73,88 @@ def on_model_save(trainer):
     upload_files(latest_folder, os.path.basename(latest_folder))
 
 
-modelA = "../runs/detect/train14/weights/last.pt"
-description = "分组分类实验1"
-version = "Classification 0.1"
-dataset = "D:/develop/YoloDB/tt100k_yolo/tt100k.yaml"
+def get_latest_train_folder(base_path):
+    train_folders = [
+        d
+        for d in os.listdir(base_path)
+        if os.path.isdir(os.path.join(base_path, d)) and d.startswith("train")
+    ]
+    if not train_folders:
+        return None
+    # 过滤掉不符合格式的文件夹
+    train_folders = [d for d in train_folders if d.replace("train", "").isdigit()]
+    if not train_folders:
+        return None
+    latest_train_folder = max(train_folders, key=lambda x: int(x.replace("train", "")))
+    return latest_train_folder
+
+
+cycle = 0
+
+base_path = "../runs/detect"
+modelAID = get_latest_train_folder(base_path)
+if modelAID is None:
+    raise ValueError("未找到最新的训练文件夹")
+
+first_run = os.path.join(base_path, "train14", "weights", "last.pt")
+modelA = os.path.join(base_path, modelAID, "weights", "last.pt")
+description = "分组实验5 循环" + str(cycle)
+version = "Group 0.2-fix1"
+dataset = "D:/develop/YoloDB/tt100k_yolo_Shape/tt100k.yaml"
 deviceA = 0
 
-model = YOLO(modelA)
+model = YOLO(first_run)
 
 model.add_callback("on_train_epoch_end", on_train_epoch_end)
 model.add_callback("on_train_end", on_model_save)
 
 results = model.train(
     data=dataset,
-    epochs=30,
+    epochs=120,
     workers=0,
     device=deviceA,
     imgsz=640,
     cache=True,
     plots=True,
 )
+
+# 检查是否继续训练
+continue_training = check_continue_training()
+if continue_training:
+    stop_at = continue_training["data"]["stop_at"]
+    target_epoch = continue_training["data"]["target_epoch"]
+    target_fitness = continue_training["data"]["target_fitness"]
+
+    if stop_at == "next":
+        print("训练结束")
+    elif stop_at == "target_epoch":
+        cycle += 1
+        if cycle < target_epoch:
+            modelA = os.path.join(base_path, modelAID, "weights", "last.pt")
+            model = YOLO(modelA)
+            model.add_callback("on_train_epoch_end", on_train_epoch_end)
+            model.add_callback("on_train_end", on_model_save)
+            results = model.train(
+                data=dataset,
+                epochs=120,
+                workers=0,
+                device=deviceA,
+                imgsz=640,
+                cache=True,
+                plots=True,
+            )
+    elif stop_at == "target_fitness":
+        if results["fitness"] < target_fitness:
+            modelA = os.path.join(base_path, modelAID, "weights", "last.pt")
+            model = YOLO(modelA)
+            model.add_callback("on_train_epoch_end", on_train_epoch_end)
+            model.add_callback("on_train_end", on_model_save)
+            results = model.train(
+                data=dataset,
+                epochs=120,
+                workers=0,
+                device=deviceA,
+                imgsz=640,
+                cache=True,
+                plots=True,
+            )
